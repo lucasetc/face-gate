@@ -1,0 +1,28 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "Logs",
+      "Effect": "Allow",
+      "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
+      "Resource": "arn:aws:logs:*:*:log-group:/aws/lambda/facegate-event-processor:*"
+    },
+    {
+      "Sid": "ConsumirFila",
+      "Effect": "Allow",
+      "Action": [
+        "sqs:ReceiveMessage",
+        "sqs:DeleteMessage",
+        "sqs:ChangeMessageVisibility",
+        "sqs:GetQueueAttributes"
+      ],
+      "Resource": "arn:aws:sqs:*:*:facegate-eventos"
+    },
+    {
+      "Sid": "MarcarAcessoProcessado",
+      "Effect": "Allow",
+      "Action": "dynamodb:UpdateItem",
+      "Resource": "arn:aws:dynamodb:*:*:table/facegate-acessos"
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "Logs",
+      "Effect": "Allow",
+      "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
+      "Resource": "arn:aws:logs:*:*:log-group:/aws/lambda/facegate-api:*"
+    },
+    {
+      "Sid": "TabelasDynamoDB",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:Scan",
+        "dynamodb:Query"
+      ],
+      "Resource": [
+        "arn:aws:dynamodb:*:*:table/facegate-moradores",
+        "arn:aws:dynamodb:*:*:table/facegate-acessos"
+      ]
+    },
+    {
+      "Sid": "FotosS3",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
+      "Resource": "arn:aws:s3:::facegate-referencias/moradores/*"
+    },
+    {
+      "Sid": "ContarFotosS3",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::facegate-referencias"
+    },
+    {
+      "Sid": "EventosSQS",
+      "Effect": "Allow",
+      "Action": ["sqs:SendMessage", "sqs:GetQueueUrl", "sqs:GetQueueAttributes"],
+      "Resource": [
+        "arn:aws:sqs:*:*:facegate-eventos",
+        "arn:aws:sqs:*:*:facegate-eventos-dlq"
+      ]
+    },
+    {
+      "Sid": "EstadoDoProcessador",
+      "Effect": "Allow",
+      "Action": "lambda:GetFunctionConfiguration",
+      "Resource": "arn:aws:lambda:*:*:function:facegate-event-processor"
+    }
+  ]
+}

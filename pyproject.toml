@@ -1,0 +1,19 @@
+# Configuração das ferramentas de qualidade (pytest e ruff).
+# Instalação:  pip install -r requirements-dev.txt
+# Execução:    pytest tests/unit        (rápidos, sem Docker)
+#              pytest tests/e2e         (ponta a ponta, com o ambiente no ar)
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["lambdas/api", "lambdas/event_processor", "face-service"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["regras", "biometria", "repositorio", "notificacoes", "app"]

@@ -1,0 +1,13 @@
+# Ambiente local de desenvolvimento: testes, lint e reconhecimento dos imports no editor.
+#   uv venv .venv --python 3.13 && uv pip install -r requirements-dev.txt
+#   (ou: python -m venv .venv && .venv\Scripts\pip install -r requirements-dev.txt)
+
+# Testes e qualidade
+pytest==9.2.0
+ruff==0.17.6
+
+# Dependências do face-service (FastAPI + OpenCV)
+-r face-service/requirements.txt
+
+# SDK da AWS: já vem no runtime das Lambdas; aqui serve aos testes e ao editor
+boto3==1.44.10

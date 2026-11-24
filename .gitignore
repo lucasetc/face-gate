@@ -1,0 +1,26 @@
+# Ambiente local (pode conter o LOCALSTACK_AUTH_TOKEN)
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+
+# Frontend
+web/node_modules/
+web/dist/
+*.log
+
+# Fotos usadas nos testes de ponta a ponta (dados biométricos: nunca versionar)
+tests/e2e/fotos/*
+!tests/e2e/fotos/LEIA-ME.md
+
+# Editor / SO
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.DS_Store
+Thumbs.db

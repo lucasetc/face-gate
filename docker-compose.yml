@@ -1,0 +1,108 @@
+# =============================================================================
+#  FaceGate · Portaria Inteligente
+#  Sobe todo o ambiente com um único comando:
+#      docker compose up --build
+#  e abra http://localhost:8088
+# =============================================================================
+name: facegate
+
+services:
+  # ---------------------------------------------------------------------------
+  # LocalStack: emula na máquina local os serviços AWS do projeto
+  # (API Gateway, Lambda, DynamoDB, S3, SQS + IAM e CloudWatch Logs).
+  # Ao ficar pronto, executa o init hook localstack/init/ready.d/provisionar.sh,
+  # que cria todos os recursos automaticamente.
+  # ---------------------------------------------------------------------------
+  localstack:
+    image: ${LOCALSTACK_IMAGE:-localstack/localstack:4.14.0}
+    container_name: facegate-localstack
+    # Portas abertas só na própria máquina, em IPv4 e IPv6. No Windows, "localhost"
+    # tenta primeiro o IPv6 (::1); sem essa porta, cada conexão nova perde ~2 s.
+    ports:
+      - "127.0.0.1:4566:4566"           # gateway único para todos os serviços AWS
+      - "[::1]:4566:4566"
+    environment:
+      LOCALSTACK_AUTH_TOKEN: ${LOCALSTACK_AUTH_TOKEN:-}   # só exigido nas versões 2026.x
+      AWS_DEFAULT_REGION: us-east-1
+      # Desempenho: carrega só os serviços usados, já no boot (sem latência na 1ª chamada)
+      SERVICES: apigateway,lambda,dynamodb,s3,sqs,logs,iam,sts
+      EAGER_SERVICE_LOADING: 1
+      DYNAMODB_IN_MEMORY: 1
+      # Lambdas rodam em contêineres próprios, na mesma rede do face-service
+      LAMBDA_DOCKER_NETWORK: facegate-net
+      LAMBDA_KEEPALIVE_MS: 3600000       # mantém as Lambdas "quentes" por 1 h (sem cold start na demo)
+      LAMBDA_RUNTIME_ENVIRONMENT_TIMEOUT: 60
+      # Com a fila vazia, o LocalStack espaça as consultas ao SQS em até 10 s (backoff).
+      # Limitando a 1 s, a Lambda de eventos processa cada evento quase na hora.
+      LAMBDA_EVENT_SOURCE_MAPPING_MAX_BACKOFF_ON_EMPTY_POLL_SEC: 1
+      # Repassados ao script de provisionamento
+      LIMIAR_SIMILARIDADE: ${LIMIAR_SIMILARIDADE:-0.363}
+      FACEGATE_PORTA: ${FACEGATE_PORTA:-8088}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock       # permite ao LocalStack criar os contêineres das Lambdas
+      - localstack-data:/var/lib/localstack             # cache do LocalStack (fora do OneDrive)
+      - ./localstack/init/ready.d:/etc/localstack/init/ready.d:ro
+      - ./infra:/opt/facegate/infra:ro
+      - ./lambdas:/opt/facegate/lambdas:ro
+    healthcheck:
+      # Saudável somente quando o provisionamento terminou com sucesso
+      test:
+        - CMD
+        - python3
+        - -c
+        - |
+          import json, sys, urllib.request
+          d = json.load(urllib.request.urlopen("http://localhost:4566/_localstack/init/ready", timeout=3))
+          scripts = d.get("scripts", [])
+          ok = d.get("completed") and scripts and all(s.get("state") == "SUCCESSFUL" for s in scripts)
+          sys.exit(0 if ok else 1)
+      interval: 5s
+      timeout: 5s
+      start_period: 30s
+      retries: 120
+    networks: [facegate]
+
+  # ---------------------------------------------------------------------------
+  # Serviço de biometria: FastAPI + OpenCV (YuNet detecta, SFace reconhece).
+  # Não decide autorização: devolve identidade provável e similaridade.
+  # Documentação interativa: http://localhost:8000/docs
+  # ---------------------------------------------------------------------------
+  face-service:
+    build: ./face-service
+    image: facegate/face-service
+    container_name: facegate-face-service
+    ports:
+      - "127.0.0.1:8000:8000"
+      - "[::1]:8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/saude', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      start_period: 20s
+      retries: 30
+    networks: [facegate]
+
+  # ---------------------------------------------------------------------------
+  # Frontend: React servido pelo Nginx, que também encaminha /api para o
+  # API Gateway do LocalStack (mesma origem: sem CORS e funciona offline).
+  # ---------------------------------------------------------------------------
+  web:
+    build: ./web
+    image: facegate/web
+    container_name: facegate-web
+    ports:
+      - "127.0.0.1:${FACEGATE_PORTA:-8088}:80"
+      - "[::1]:${FACEGATE_PORTA:-8088}:80"
+    depends_on:
+      localstack:
+        condition: service_healthy
+      face-service:
+        condition: service_healthy
+    networks: [facegate]
+
+volumes:
+  localstack-data:
+
+networks:
+  facegate:
+    name: facegate-net

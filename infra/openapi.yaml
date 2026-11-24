@@ -1,0 +1,154 @@
+# =============================================================================
+#  Contrato da API do FaceGate — importado no API Gateway (REST) pelo script
+#  localstack/init/ready.d/provisionar.sh. Todas as rotas usam integração
+#  AWS_PROXY com a Lambda facegate-api (o marcador ${LAMBDA_API_URI} é
+#  substituído pelo ARN real durante o provisionamento).
+# =============================================================================
+openapi: 3.0.1
+info:
+  title: facegate-api
+  version: "1.0.0"
+  description: Portaria inteligente com reconhecimento facial (API Gateway → Lambda facegate-api).
+
+paths:
+  /moradores:
+    get:
+      summary: Listar moradores cadastrados
+      operationId: listarMoradores
+      responses:
+        "200": { description: Lista de moradores (sem dados biométricos) }
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri: ${LAMBDA_API_URI}
+        passthroughBehavior: when_no_match
+    post:
+      summary: Cadastrar morador e referência facial
+      operationId: cadastrarMorador
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NovoMorador" }
+      responses:
+        "201": { description: Morador cadastrado }
+        "400": { description: Dados inválidos ou sem consentimento }
+        "409": { description: Rosto já cadastrado }
+        "422": { description: Problema na foto (ex. nenhum rosto) }
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri: ${LAMBDA_API_URI}
+        passthroughBehavior: when_no_match
+
+  /moradores/{id}:
+    get:
+      summary: Consultar um morador
+      operationId: obterMorador
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Morador }
+        "404": { description: Morador não encontrado }
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri: ${LAMBDA_API_URI}
+        passthroughBehavior: when_no_match
+    patch:
+      summary: Atualizar dados ou ativar/desativar a permissão
+      operationId: atualizarMorador
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AtualizacaoMorador" }
+      responses:
+        "200": { description: Morador atualizado }
+        "404": { description: Morador não encontrado }
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri: ${LAMBDA_API_URI}
+        passthroughBehavior: when_no_match
+    delete:
+      summary: Excluir cadastro, foto e referência biométrica (LGPD)
+      operationId: excluirMorador
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "204": { description: Excluído }
+        "404": { description: Morador não encontrado }
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri: ${LAMBDA_API_URI}
+        passthroughBehavior: when_no_match
+
+  /acessos:
+    get:
+      summary: Consultar o histórico de tentativas de um dia
+      operationId: listarAcessos
+      parameters:
+        - { name: dia, in: query, required: false, schema: { type: string, format: date } }
+      responses:
+        "200": { description: Tentativas do dia, da mais recente para a mais antiga }
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri: ${LAMBDA_API_URI}
+        passthroughBehavior: when_no_match
+
+  /acessos/validar:
+    post:
+      summary: Identificar a pessoa e obter a decisão de acesso simulada
+      operationId: validarAcesso
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PedidoAcesso" }
+      responses:
+        "200": { description: Decisão (AUTORIZADO ou NEGADO) com rastreamento }
+        "503": { description: Falha de infraestrutura (acesso NEGADO por segurança) }
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri: ${LAMBDA_API_URI}
+        passthroughBehavior: when_no_match
+
+  /sistema:
+    get:
+      summary: Resumo da infraestrutura (painel)
+      operationId: statusSistema
+      responses:
+        "200": { description: Estado dos serviços }
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri: ${LAMBDA_API_URI}
+        passthroughBehavior: when_no_match
+
+components:
+  schemas:
+    NovoMorador:
+      type: object
+      required: [nome, unidade, imagem, consentimento]
+      properties:
+        nome: { type: string, minLength: 2, maxLength: 80 }
+        unidade: { type: string, minLength: 1, maxLength: 20 }
+        imagem: { type: string, description: Foto JPEG ou PNG em base64 }
+        consentimento: { type: boolean, enum: [true] }
+    AtualizacaoMorador:
+      type: object
+      properties:
+        nome: { type: string }
+        unidade: { type: string }
+        status: { type: string, enum: [ATIVO, INATIVO] }
+    PedidoAcesso:
+      type: object
+      required: [imagem]
+      properties:
+        imagem: { type: string, description: Captura da câmera (JPEG ou PNG em base64) }
